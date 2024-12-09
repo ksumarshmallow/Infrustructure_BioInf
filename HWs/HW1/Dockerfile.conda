@@ -1,0 +1,45 @@
+FROM continuumio/anaconda3:latest
+
+# lets-make-your-docker-image-better-than-90-of-existing-ones
+ARG BUILD_DATE
+LABEL maintainer="ksu_marshmallow" \
+      org.label-schema.build-date=$BUILD_DATE \
+      org.label-schema.name="BAM Processing Pipeline Image" \
+      org.label-schema.description="Docker image for BAM file processing with Samtools" \
+      org.label-schema.vcs-ref="main" \
+      org.label-schema.schema-version="1.0"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install additional dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget \
+     && rm -rf /var/lib/apt/lists/*
+
+#################################################
+# 1. Create & activate conda environment
+#################################################
+
+# Set working directory
+WORKDIR /usr/src
+
+# Install the conda environment
+COPY environment.yaml .
+RUN conda env create --quiet -f environment.yaml && conda clean -a
+
+# Add conda installation dir to PATH (instead of doing 'conda activate')
+ENV PATH /opt/conda/envs/rnaseq_pipe/bin:$PATH
+
+RUN echo "Activating the conda environment and checking tool versions..." && \
+    bash -c "source activate rnaseq_pipe && samtools --version && bcftools --version && fastqc --version && multiqc --version && echo 'All tools installed'"
+
+#################################################
+# 2. .bam processing pipeline setup
+#################################################
+
+# Copy pipeline script
+COPY pipeline.sh .
+RUN chmod +x pipeline.sh
+
+# Default command
+CMD ["./pipeline.sh"]
